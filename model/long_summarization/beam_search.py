@@ -135,14 +135,17 @@ def run_beam_search(sess, model, vocab, batch):
       h, new_state, attn_dist, p_gen, new_coverage_i, attn_dist_sec = hyps[i], new_states[i], attn_dists[i], p_gens[i], new_coverage[i], attn_dists_sec[i]  # take the ith hypothesis and new decoder state info
       for j in xrange(FLAGS.beam_size * 2):  # for each of the top 2*beam_size hyps:
         # Extend the ith hypothesis with the jth option
-        new_hyp = h.extend(token=topk_ids[i, j],
-                           log_prob=topk_log_probs[i, j],
-                           state=new_state,
-                           attn_dist=attn_dist,
-                           p_gen=p_gen,
-                           coverage=new_coverage_i,
-                           attn_dist_sec=attn_dist_sec)
-        all_hyps.append(new_hyp)
+        token = topk_ids[i,j]
+        if check_trigram_blocking(h,token):
+            # Extend the ith hypothesis with the jth option
+            new_hyp = h.extend(token=topk_ids[i, j],
+                            log_prob=topk_log_probs[i, j],
+                            state=new_state,
+                            attn_dist=attn_dist,
+                            p_gen=p_gen,
+                            coverage=new_coverage_i,
+                            attn_dist_sec=attn_dist_sec)
+            all_hyps.append(new_hyp)
 
     # Filter and collect any hypotheses that have produced the end token.
     hyps = [] # will contain hypotheses for the next step
@@ -169,6 +172,15 @@ def run_beam_search(sess, model, vocab, batch):
 
   # Return the hypothesis with highest average log prob
   return hyps_sorted[0]
+
+def check_trigram_blocking(h,token):
+    trigrams=set()
+    for i in range(0,len(h.tokens)-2): trigrams.add(tuple(h.tokens[i:i+3]))
+    
+    len_h = len(h.tokens)
+    new_trigram = tuple(h.tokens[len_h-2:len_h] + [token])
+    if new_trigram in trigrams: return 0
+    return 1
 
 def sort_hyps(hyps):
   """Return a list of Hypothesis objects, sorted by descending average log probability"""
